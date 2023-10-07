@@ -7,43 +7,18 @@ import {
     Element as SlateElement,
     Transforms,
 } from "slate";
-import {
-    Slate,
-    withReact,
-    ReactEditor,
-    Editable,
-    useSlate,
-    useSlateStatic,
-    useSelected,
-    useFocused,
-} from "slate-react";
+import { Slate, withReact, ReactEditor, Editable, useSlate } from "slate-react";
 import { withHistory } from "slate-history";
 import { useCallback, useMemo } from "react";
-import isUrl from "is-url";
-import imageExtensions from "image-extensions";
 
-type ImageElement = {
-    type: "image";
-    url: string;
-    children: EmptyText[];
+type CustomElementType = "paragraph";
+
+type CustomElement = {
+    type: CustomElementType;
+    children: CustomText[];
 };
-
-type ParagraphElement = {
-    type: "paragraph";
-    align?: string;
-    children: Descendant[];
-};
-
-type CustomElement = ImageElement | ParagraphElement;
 
 type CustomText = {
-    text: string;
-    bold?: boolean;
-    italic?: boolean;
-    code?: boolean;
-};
-
-type EmptyText = {
     text: string;
 };
 
@@ -51,7 +26,7 @@ declare module "slate" {
     interface CustomTypes {
         Editor: BaseEditor & ReactEditor;
         Element: CustomElement;
-        Text: CustomText | EmptyText;
+        Text: CustomText;
     }
 }
 
@@ -61,25 +36,7 @@ const TEXT_ALIGN_TYPES = ["left", "center", "right", "justify"];
 const RichTextEditor = () => {
     const renderElement = useCallback((props) => <Element {...props} />, []);
     const renderLeaf = useCallback((props) => <Leaf {...props} />, []);
-    const editor = useMemo(
-        () => withImages(withHistory(withReact(createEditor()))),
-        []
-    );
-    const initialValue: Descendant[] = useMemo(
-        () =>
-            JSON.parse(localStorage.getItem("content")) || [
-                {
-                    type: "paragraph",
-                    children: [{ text: "" }],
-                },
-                {
-                    type: "image",
-                    url: "https://source.unsplash.com/zOwZKwZOZq8",
-                    children: [{ text: "" }],
-                },
-            ],
-        []
-    );
+    const editor = useMemo(() => withHistory(withReact(createEditor())), []);
 
     return (
         <Slate
@@ -96,7 +53,7 @@ const RichTextEditor = () => {
                 }
             }}
         >
-            <div className="flex gap-5">
+            <div>
                 <MarkButton format="bold" icon="format_bold" />
                 <MarkButton format="italic" icon="format_italic" />
                 <MarkButton format="underline" icon="format_underlined" />
@@ -116,7 +73,6 @@ const RichTextEditor = () => {
                 <BlockButton format="center" icon="format_align_center" />
                 <BlockButton format="right" icon="format_align_right" />
                 <BlockButton format="justify" icon="format_align_justify" />
-                <InsertImageButton icon="insert_image" />
             </div>
 
             <Editable
@@ -161,10 +117,6 @@ const Element = ({ attributes, children, element }) => {
                 <ol style={style} {...attributes}>
                     {children}
                 </ol>
-            );
-        case "image":
-            return (
-                <Image {...attributes} children={children} element={element} />
             );
         default:
             return (
@@ -222,27 +174,6 @@ const BlockButton: React.FC<{
             onMouseDown={(event) => {
                 event.preventDefault();
                 toggleBlock(editor, format);
-            }}
-        >
-            {icon}
-        </button>
-    );
-};
-
-const InsertImageButton: React.FC<{
-    icon: string;
-}> = ({ icon }) => {
-    const editor = useSlateStatic();
-    return (
-        <button
-            onMouseDown={(e) => {
-                e.preventDefault();
-                const url = window.prompt("Enter the url");
-                if (url && !isImageUrl(url)) {
-                    alert("URL is not an image");
-                    return;
-                }
-                url && insertImage(editor, url);
             }}
         >
             {icon}
@@ -312,83 +243,11 @@ const isBlockActive = (
     return !!match;
 };
 
-const Image: React.FC<{
-    attributes: any;
-    children: any;
-    element: any;
-}> = ({ attributes, children, element }) => {
-    const editor = useSlateStatic();
-    const path = ReactEditor.findPath(editor, element);
-
-    const selected = useSelected();
-    const focused = useFocused();
-    return (
-        <div {...attributes}>
-            {children}
-            <div contentEditable={false} style={{ position: "relative" }}>
-                <img
-                    src={element.url}
-                    style={{
-                        display: "block",
-                        maxWidth: "100%",
-                        maxHeight: "20em",
-                    }}
-                />
-                <button
-                    onClick={() => Transforms.removeNodes(editor, { at: path })}
-                >
-                    delete
-                </button>
-            </div>
-        </div>
-    );
-};
-
-const insertImage = (editor: any, url: string) => {
-    const text = { text: "" };
-    const image: ImageElement = { type: "image", url, children: [text] };
-    Transforms.insertNodes(editor, image);
-};
-
-const isImageUrl = (url) => {
-    if (!url) return false;
-    if (!isUrl(url)) return false;
-    const ext = new URL(url).pathname.split(".").pop();
-    return imageExtensions.includes(ext);
-};
-
-const withImages = (editor: any) => {
-    const { insertData, isVoid } = editor;
-
-    editor.isVoid = (element) => {
-        return element.type === "image" ? true : isVoid(element);
-    };
-
-    editor.insertData = (data) => {
-        const text = data.getData("text/plain");
-        const { files } = data;
-
-        if (files && files.length > 0) {
-            for (const file of files) {
-                const reader = new FileReader();
-                const [mime] = file.type.split("/");
-
-                if (mime === "image") {
-                    reader.addEventListener("load", () => {
-                        const url = reader.result;
-                        insertImage(editor, url);
-                    });
-
-                    reader.readAsDataURL(file);
-                }
-            }
-        } else if (isImageUrl(text)) {
-            insertImage(editor, text);
-        } else {
-            insertData(data);
-        }
-    };
-    return editor;
-};
+const initialValue: Descendant[] = [
+    {
+        type: "paragraph",
+        children: [{ text: "test" }],
+    },
+];
 
 export default RichTextEditor;
